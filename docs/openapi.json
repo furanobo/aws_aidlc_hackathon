@@ -1,14 +1,330 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "ぶたそだて Avatar API",
-    "version": "1.0.0"
+    "title": "ぶたそだて API",
+    "version": "1.0.0",
+    "description": "ぶたそだて全ユニットAPI仕様 (Unit1: Auth, Unit2: Recording, Unit3: Avatar, Unit4: Battle/Social, Unit5: Admin)"
   },
   "components": {
     "schemas": {},
-    "parameters": {}
+    "parameters": {},
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
   },
   "paths": {
+    "/auth/signup": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "サインアップ",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "email": { "type": "string" }, "password": { "type": "string" } }, "required": ["email", "password"] } } } },
+        "responses": { "200": { "description": "成功" }, "400": { "description": "バリデーションエラー" } }
+      }
+    },
+    "/auth/confirm": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "サインアップ確認",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "email": { "type": "string" }, "code": { "type": "string" } }, "required": ["email", "code"] } } } },
+        "responses": { "200": { "description": "成功" }, "400": { "description": "コード不正" } }
+      }
+    },
+    "/auth/resend-code": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "確認コード再送",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "email": { "type": "string" } }, "required": ["email"] } } } },
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "ログイン",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "email": { "type": "string" }, "password": { "type": "string" } }, "required": ["email", "password"] } } } },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "accessToken": { "type": "string" }, "refreshToken": { "type": "string" }, "idToken": { "type": "string" } } } } } }, "401": { "description": "認証失敗" } }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "ログアウト",
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "トークンリフレッシュ",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "refreshToken": { "type": "string" } }, "required": ["refreshToken"] } } } },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "accessToken": { "type": "string" }, "idToken": { "type": "string" } } } } } } }
+      }
+    },
+    "/users/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "プロフィール取得",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "userId": { "type": "string" }, "nickname": { "type": "string" }, "email": { "type": "string" } } } } } }, "401": { "description": "未認証" } }
+      }
+    },
+    "/users/profile": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "プロフィール作成",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "nickname": { "type": "string" } }, "required": ["nickname"] } } } },
+        "responses": { "201": { "description": "作成成功" }, "401": { "description": "未認証" } }
+      },
+      "put": {
+        "tags": ["Auth"],
+        "summary": "プロフィール更新",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "nickname": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "更新成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/activities": {
+      "post": {
+        "tags": ["Recording"],
+        "summary": "不健康行動を記録",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "categoryId": { "type": "string" }, "memo": { "type": "string" } }, "required": ["categoryId"] } } } },
+        "responses": { "201": { "description": "記録成功" }, "401": { "description": "未認証" } }
+      },
+      "get": {
+        "tags": ["Recording"],
+        "summary": "記録一覧取得",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" } },
+          { "name": "categoryId", "in": "query", "schema": { "type": "string" } },
+          { "name": "from", "in": "query", "schema": { "type": "string" } },
+          { "name": "to", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/activities/batch": {
+      "post": {
+        "tags": ["Recording"],
+        "summary": "一括記録",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "records": { "type": "array", "items": { "type": "object", "properties": { "categoryId": { "type": "string" }, "memo": { "type": "string" } } } } }, "required": ["records"] } } } },
+        "responses": { "200": { "description": "成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/activities/{recordId}": {
+      "delete": {
+        "tags": ["Recording"],
+        "summary": "自動検出記録を削除",
+        "parameters": [{ "name": "recordId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "削除成功" }, "401": { "description": "未認証" }, "403": { "description": "手動記録は削除不可" }, "404": { "description": "未発見" } }
+      }
+    },
+    "/activities/summary": {
+      "get": {
+        "tags": ["Recording"],
+        "summary": "記録サマリー取得",
+        "parameters": [{ "name": "period", "in": "query", "schema": { "type": "string", "enum": ["today", "week"], "default": "today" } }],
+        "responses": { "200": { "description": "成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": ["Recording"],
+        "summary": "カテゴリ一覧取得",
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/categories/version": {
+      "get": {
+        "tags": ["Recording"],
+        "summary": "カテゴリバージョン取得",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "version": { "type": "integer" } } } } } } }
+      }
+    },
+    "/health-sync": {
+      "post": {
+        "tags": ["Recording"],
+        "summary": "ヘルスデータ同期",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "records": { "type": "array", "items": { "type": "object", "properties": { "type": { "type": "string", "enum": ["steps", "sleep", "weight"] }, "value": { "type": "number" }, "date": { "type": "string" } } } } }, "required": ["records"] } } } },
+        "responses": { "200": { "description": "同期成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/social/friends": {
+      "get": {
+        "tags": ["Social"],
+        "summary": "フレンド一覧取得",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "friends": { "type": "array", "items": { "type": "object" } } } } } } }, "401": { "description": "未認証" } }
+      }
+    },
+    "/social/friends/search": {
+      "post": {
+        "tags": ["Social"],
+        "summary": "ユーザー検索",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "query": { "type": "string" } }, "required": ["query"] } } } },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "users": { "type": "array", "items": { "type": "object" } } } } } } } }
+      }
+    },
+    "/social/friends/request": {
+      "post": {
+        "tags": ["Social"],
+        "summary": "フレンド申請",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "targetUserId": { "type": "string" } }, "required": ["targetUserId"] } } } },
+        "responses": { "201": { "description": "申請成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/social/friends/respond": {
+      "post": {
+        "tags": ["Social"],
+        "summary": "フレンド申請応答",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "requestId": { "type": "string" }, "accept": { "type": "boolean" } }, "required": ["requestId", "accept"] } } } },
+        "responses": { "200": { "description": "成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/social/friends/requests": {
+      "get": {
+        "tags": ["Social"],
+        "summary": "受信フレンド申請一覧",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "requests": { "type": "array", "items": { "type": "object" } } } } } } }, "401": { "description": "未認証" } }
+      }
+    },
+    "/social/friends/{friendId}": {
+      "delete": {
+        "tags": ["Social"],
+        "summary": "フレンド削除",
+        "parameters": [{ "name": "friendId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "削除成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/rankings": {
+      "get": {
+        "tags": ["Battle"],
+        "summary": "ランキング取得",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "rankings": { "type": "array", "items": { "type": "object", "properties": { "userId": { "type": "string" }, "points": { "type": "number" }, "wins": { "type": "integer" }, "losses": { "type": "integer" } } } } } } } } } }
+      }
+    },
+    "/rankings/me": {
+      "get": {
+        "tags": ["Battle"],
+        "summary": "自分のランキング取得",
+        "responses": { "200": { "description": "成功" }, "401": { "description": "未認証" } }
+      }
+    },
+    "/battles/history": {
+      "get": {
+        "tags": ["Battle"],
+        "summary": "バトル履歴取得",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "history": { "type": "array", "items": { "type": "object" } } } } } } }, "401": { "description": "未認証" } }
+      }
+    },
+    "/battles/history/{matchId}": {
+      "get": {
+        "tags": ["Battle"],
+        "summary": "バトル詳細取得",
+        "parameters": [{ "name": "matchId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "成功" }, "401": { "description": "未認証" }, "404": { "description": "未発見" } }
+      }
+    },
+    "/admin/login": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "管理画面ログイン",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "user": { "type": "string" }, "password": { "type": "string" } }, "required": ["user", "password"] } } } },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "token": { "type": "string" } } } } } }, "401": { "description": "認証失敗" } }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "ユーザー一覧",
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer" } }, { "name": "token", "in": "query", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/admin/users/{username}": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "ユーザー詳細",
+        "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "成功" } }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "ユーザー削除",
+        "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/admin/users/{username}/disable": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "アカウント停止",
+        "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/admin/users/{username}/enable": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "アカウント復活",
+        "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/admin/users/{username}/avatar": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "アバターデータ修正",
+        "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/admin/users/{username}/health-data": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "ヘルスデータ手動入力",
+        "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "weight": { "type": "number" }, "bmi": { "type": "number" }, "steps": { "type": "number" }, "sleepHours": { "type": "number" }, "date": { "type": "string" } }, "required": ["date"] } } } },
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/admin/evolution-paths": {
+      "get": { "tags": ["Admin"], "summary": "進化パス一覧", "responses": { "200": { "description": "成功" } } },
+      "post": { "tags": ["Admin"], "summary": "進化パス作成", "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } }, "responses": { "201": { "description": "作成成功" } } }
+    },
+    "/admin/evolution-paths/{pathId}": {
+      "put": { "tags": ["Admin"], "summary": "進化パス更新", "parameters": [{ "name": "pathId", "in": "path", "required": true, "schema": { "type": "string" } }], "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } }, "responses": { "200": { "description": "成功" } } },
+      "delete": { "tags": ["Admin"], "summary": "進化パス削除", "parameters": [{ "name": "pathId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "成功" } } }
+    },
+    "/admin/skills": {
+      "get": { "tags": ["Admin"], "summary": "スキル一覧", "responses": { "200": { "description": "成功" } } },
+      "post": { "tags": ["Admin"], "summary": "スキル作成", "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } }, "responses": { "201": { "description": "作成成功" } } }
+    },
+    "/admin/skills/{skillId}": {
+      "put": { "tags": ["Admin"], "summary": "スキル更新", "parameters": [{ "name": "skillId", "in": "path", "required": true, "schema": { "type": "string" } }], "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } }, "responses": { "200": { "description": "成功" } } },
+      "delete": { "tags": ["Admin"], "summary": "スキル削除", "parameters": [{ "name": "skillId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "成功" } } }
+    },
+    "/admin/game-config": {
+      "get": { "tags": ["Admin"], "summary": "ゲーム設定取得", "responses": { "200": { "description": "成功" } } },
+      "put": { "tags": ["Admin"], "summary": "ゲーム設定更新", "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "configKey": { "type": "string" }, "value": {} }, "required": ["configKey", "value"] } } } }, "responses": { "200": { "description": "成功" } } }
+    },
+    "/admin/audit-log": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "操作ログ一覧",
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "成功" } }
+      }
+    },
+    "/admin/upload-url": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "S3 Presigned URL発行",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "fileName": { "type": "string" }, "contentType": { "type": "string" } }, "required": ["fileName", "contentType"] } } } },
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "type": "object", "properties": { "uploadUrl": { "type": "string" }, "key": { "type": "string" } } } } } } }
+      }
+    },
     "/avatar": {
       "post": {
         "tags": [
