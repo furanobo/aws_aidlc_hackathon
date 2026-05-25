@@ -6,6 +6,16 @@ import 'package:buta_app/shared/constants.dart';
 import 'package:buta_app/shared/services/cache_service.dart';
 import 'package:buta_app/shared/services/image_cache_service.dart';
 
+/// 認証API用Dio（テストで差し替え可能）
+final authDioProvider = Provider<Dio>((ref) {
+  return Dio(BaseOptions(baseUrl: ApiClient.baseUrl));
+});
+
+/// アバターAPI用Dio（テストで差し替え可能）
+final avatarDioProvider = Provider<Dio>((ref) {
+  return Dio(BaseOptions(baseUrl: AppConstants.avatarApiBase));
+});
+
 class AuthTokens {
   final String accessToken;
   final String? refreshToken;
@@ -30,7 +40,7 @@ class AuthStateNotifier extends AsyncNotifier<AuthTokens?> {
 
   Future<bool> login(String email, String password) async {
     try {
-      final dio = Dio(BaseOptions(baseUrl: ApiClient.baseUrl));
+      final dio = ref.read(authDioProvider);
       final response = await dio.post('/auth/login', data: {
         'email': email,
         'password': password,
@@ -53,11 +63,8 @@ class AuthStateNotifier extends AsyncNotifier<AuthTokens?> {
 
   Future<bool> signup(String email, String password) async {
     try {
-      final dio = Dio(BaseOptions(baseUrl: ApiClient.baseUrl));
-      await dio.post('/auth/signup', data: {
-        'email': email,
-        'password': password,
-      });
+      final dio = ref.read(authDioProvider);
+      await dio.post('/auth/signup', data: {'email': email, 'password': password});
       return true;
     } on DioException {
       return false;
@@ -66,11 +73,8 @@ class AuthStateNotifier extends AsyncNotifier<AuthTokens?> {
 
   Future<bool> confirmSignup(String email, String code) async {
     try {
-      final dio = Dio(BaseOptions(baseUrl: ApiClient.baseUrl));
-      await dio.post('/auth/confirm', data: {
-        'email': email,
-        'code': code,
-      });
+      final dio = ref.read(authDioProvider);
+      await dio.post('/auth/confirm', data: {'email': email, 'code': code});
       return true;
     } on DioException {
       return false;
@@ -82,7 +86,7 @@ class AuthStateNotifier extends AsyncNotifier<AuthTokens?> {
     if (currentTokens?.refreshToken == null) return false;
 
     try {
-      final dio = Dio(BaseOptions(baseUrl: ApiClient.baseUrl));
+      final dio = ref.read(authDioProvider);
       final response = await dio.post('/auth/refresh', data: {
         'refreshToken': currentTokens!.refreshToken,
       });
@@ -106,28 +110,24 @@ class AuthStateNotifier extends AsyncNotifier<AuthTokens?> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_accessTokenKey);
     await prefs.remove(_refreshTokenKey);
-    // キャッシュも全削除
     await ref.read(cacheServiceProvider).clearAll();
     await ref.read(imageCacheServiceProvider).clearAll();
     state = const AsyncData(null);
   }
 
-  /// ニックネーム設定後にアバターを作成（最大3回リトライ）
   Future<bool> createInitialAvatar() async {
     final tokens = state.value;
     if (tokens == null) return false;
 
-    final dio = Dio(BaseOptions(
-      baseUrl: AppConstants.avatarApiBase,
-      headers: {'Authorization': 'Bearer ${tokens.accessToken}'},
-    ));
+    final dio = ref.read(avatarDioProvider);
+    dio.options.headers['Authorization'] = 'Bearer ${tokens.accessToken}';
 
     for (var i = 0; i < AppConstants.avatarCreateMaxRetries; i++) {
       try {
         await dio.post('/avatar', data: {'name': 'ぶたさん'});
         return true;
       } on DioException catch (e) {
-        if (e.response?.statusCode == 409) return true; // 既に存在
+        if (e.response?.statusCode == 409) return true;
         if (i < AppConstants.avatarCreateMaxRetries - 1) {
           await Future.delayed(AppConstants.avatarCreateRetryDelay);
         }
@@ -149,7 +149,6 @@ final authStateProvider = AsyncNotifierProvider<AuthStateNotifier, AuthTokens?>(
   return AuthStateNotifier();
 });
 
-// 簡易的にログイン済みかどうかを判定
 final isLoggedInProvider = Provider<bool>((ref) {
   return ref.watch(authStateProvider).value != null;
 });

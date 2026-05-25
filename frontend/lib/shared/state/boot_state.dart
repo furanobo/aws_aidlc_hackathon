@@ -11,6 +11,17 @@ enum AppBootStatus { checking, loadingData, done, error }
 
 enum BootDestination { login, nickname, home }
 
+/// DI: Connectivity check
+final connectivityCheckProvider = Provider<Future<List<ConnectivityResult>> Function()>((ref) {
+  return () => Connectivity().checkConnectivity();
+});
+
+/// DI: Boot用Dioプロバイダー
+final bootAuthDioProvider = Provider<Dio>((ref) => Dio(BaseOptions(baseUrl: AppConstants.authApiBase)));
+final bootAvatarDioProvider = Provider<Dio>((ref) => Dio(BaseOptions(baseUrl: AppConstants.avatarApiBase)));
+final bootRecordingDioProvider = Provider<Dio>((ref) => Dio(BaseOptions(baseUrl: AppConstants.recordingApiBase)));
+final bootSocialDioProvider = Provider<Dio>((ref) => Dio(BaseOptions(baseUrl: AppConstants.socialApiBase)));
+
 class BootResult {
   final BootDestination destination;
   final UserProfile? profile;
@@ -40,7 +51,6 @@ class BootNotifier extends AsyncNotifier<BootResult> {
   Future<BootResult> _executeBoot() async {
     final startTime = DateTime.now();
 
-    // トークン確認
     final authState = ref.read(authStateProvider);
     final tokens = authState.value;
     if (tokens == null) {
@@ -48,35 +58,26 @@ class BootNotifier extends AsyncNotifier<BootResult> {
       return BootResult(destination: BootDestination.login);
     }
 
-    // ネットワーク確認
-    final connectivity = await Connectivity().checkConnectivity();
+    final connectivity = await ref.read(connectivityCheckProvider)();
     final isOffline = connectivity.contains(ConnectivityResult.none);
+    if (isOffline) return _handleOffline(startTime);
 
-    if (isOffline) {
-      return _handleOffline(startTime);
-    }
-
-    // トークン検証 + プロフィール取得
     try {
       final profile = await _fetchProfile(tokens.accessToken);
       if (profile == null || !profile.hasNickname) {
         await _waitMinDuration(startTime);
         return BootResult(destination: BootDestination.nickname, profile: profile);
       }
-
-      // 初期データ並列取得
       final results = await _fetchInitialData(tokens.accessToken, profile);
       await _waitMinDuration(startTime);
       return results;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
-        // リフレッシュ試行
         final refreshed = await ref.read(authStateProvider.notifier).refreshToken();
         if (!refreshed) {
           await _waitMinDuration(startTime);
           return BootResult(destination: BootDestination.login);
         }
-        // リフレッシュ成功 → 再実行
         return _executeBoot();
       }
       return _handleOffline(startTime);
@@ -86,10 +87,8 @@ class BootNotifier extends AsyncNotifier<BootResult> {
   }
 
   Future<UserProfile?> _fetchProfile(String accessToken) async {
-    final dio = Dio(BaseOptions(
-      baseUrl: AppConstants.authApiBase,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    ));
+    final dio = ref.read(bootAuthDioProvider);
+    dio.options.headers['Authorization'] = 'Bearer $accessToken';
     try {
       final res = await dio.get('/users/me');
       return UserProfile.fromJson(res.data as Map<String, dynamic>);
@@ -102,21 +101,13 @@ class BootNotifier extends AsyncNotifier<BootResult> {
   Future<BootResult> _fetchInitialData(String accessToken, UserProfile profile) async {
     final cache = ref.read(cacheServiceProvider);
     final imageCache = ref.read(imageCacheServiceProvider);
+    final avatarDio = ref.read(bootAvatarDioProvider);
+    final recordingDio = ref.read(bootRecordingDioProvider);
+    final socialDio = ref.read(bootSocialDioProvider);
+    avatarDio.options.headers['Authorization'] = 'Bearer $accessToken';
+    recordingDio.options.headers['Authorization'] = 'Bearer $accessToken';
+    socialDio.options.headers['Authorization'] = 'Bearer $accessToken';
 
-    final avatarDio = Dio(BaseOptions(
-      baseUrl: AppConstants.avatarApiBase,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    ));
-    final recordingDio = Dio(BaseOptions(
-      baseUrl: AppConstants.recordingApiBase,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    ));
-    final socialDio = Dio(BaseOptions(
-      baseUrl: AppConstants.socialApiBase,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    ));
-
-    // 並列実行
     final results = await Future.wait([
       _fetchAvatar(avatarDio),
       _fetchSummary(recordingDio),
@@ -127,28 +118,15 @@ class BootNotifier extends AsyncNotifier<BootResult> {
     final summary = results[1] as RecordSummary?;
     final pendingCount = results[2] as int? ?? 0;
 
-    // キャッシュ保存
     await cache.saveProfile(profile);
     if (avatar != null) await cache.saveAvatar(avatar);
     if (summary != null) await cache.saveSummary(summary);
 
-    // 画像プリロード（非ブロッキング）
     String? imagePath;
-    if (avatar != null) {
-      imagePath = await imageCache.getOrDownload(avatar.spriteSheetKey);
-    }
-
-    // ヘルスデータ同期（fire-and-forget）
+    if (avatar != null) imagePath = await imageCache.getOrDownload(avatar.spriteSheetKey);
     _syncHealthData(recordingDio);
 
-    return BootResult(
-      destination: BootDestination.home,
-      profile: profile,
-      avatar: avatar,
-      summary: summary,
-      pendingRequestCount: pendingCount,
-      avatarImagePath: imagePath,
-    );
+    return BootResult(destination: BootDestination.home, profile: profile, avatar: avatar, summary: summary, pendingRequestCount: pendingCount, avatarImagePath: imagePath);
   }
 
   Future<Avatar?> _fetchAvatar(Dio dio) async {
@@ -157,13 +135,10 @@ class BootNotifier extends AsyncNotifier<BootResult> {
       return Avatar.fromJson(res.data['avatar'] as Map<String, dynamic>);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        // 自己修復: アバター自動作成
         try {
-          final createRes = await dio.post('/avatar', data: {'name': 'ぶたさん'});
-          return Avatar.fromJson(createRes.data['avatar'] as Map<String, dynamic>);
-        } catch (_) {
-          return null;
-        }
+          final r = await dio.post('/avatar', data: {'name': 'ぶたさん'});
+          return Avatar.fromJson(r.data['avatar'] as Map<String, dynamic>);
+        } catch (_) { return null; }
       }
       return null;
     }
@@ -173,25 +148,17 @@ class BootNotifier extends AsyncNotifier<BootResult> {
     try {
       final res = await dio.get('/activities/summary', queryParameters: {'period': 'today'});
       return RecordSummary.fromJson(res.data as Map<String, dynamic>);
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
   Future<int> _fetchPendingCount(Dio dio) async {
     try {
       final res = await dio.get('/social/friends/requests');
-      final requests = res.data['requests'] as List<dynamic>? ?? [];
-      return requests.length;
-    } catch (_) {
-      return 0;
-    }
+      return (res.data['requests'] as List<dynamic>? ?? []).length;
+    } catch (_) { return 0; }
   }
 
-  void _syncHealthData(Dio dio) {
-    // fire-and-forget
-    dio.post('/health-sync', data: {'records': []}).ignore();
-  }
+  void _syncHealthData(Dio dio) { dio.post('/health-sync', data: {'records': []}).ignore(); }
 
   Future<BootResult> _handleOffline(DateTime startTime) async {
     final cache = ref.read(cacheServiceProvider);
@@ -203,28 +170,16 @@ class BootNotifier extends AsyncNotifier<BootResult> {
       String? imagePath;
       if (avatar != null) {
         final imageCache = ref.read(imageCacheServiceProvider);
-        final cached = await imageCache.isCached(avatar.spriteSheetKey);
-        if (cached) {
+        if (await imageCache.isCached(avatar.spriteSheetKey)) {
           imagePath = await imageCache.getOrDownload(avatar.spriteSheetKey);
         }
       }
       await _waitMinDuration(startTime);
-      return BootResult(
-        destination: BootDestination.home,
-        profile: profile,
-        avatar: avatar,
-        summary: summary,
-        isOffline: true,
-        avatarImagePath: imagePath,
-      );
+      return BootResult(destination: BootDestination.home, profile: profile, avatar: avatar, summary: summary, isOffline: true, avatarImagePath: imagePath);
     }
 
     await _waitMinDuration(startTime);
-    return BootResult(
-      destination: BootDestination.home,
-      isOffline: true,
-      errorMessage: 'ネットワークに接続できません',
-    );
+    return BootResult(destination: BootDestination.home, isOffline: true, errorMessage: 'ネットワークに接続できません');
   }
 
   Future<void> _waitMinDuration(DateTime startTime) async {

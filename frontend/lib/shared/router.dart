@@ -31,9 +31,12 @@ import 'package:buta_app/features/settings/notification_settings_screen.dart';
 import 'package:buta_app/features/settings/account_manage_screen.dart';
 import 'package:buta_app/features/start/system_screens.dart';
 
+/// テストで差し替え可能なinitialLocation
+final initialRouteProvider = Provider<String>((ref) => '/splash');
+
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: ref.read(initialRouteProvider),
     routes: [
       GoRoute(
         path: '/splash',
