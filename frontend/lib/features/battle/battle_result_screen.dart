@@ -6,6 +6,7 @@ import 'package:buta_app/shared/theme.dart';
 import 'package:buta_app/shared/ui/audience_animation.dart';
 import 'package:buta_app/shared/ui/cloud_animation.dart';
 import 'package:buta_app/shared/services/api_client.dart';
+import 'package:buta_app/shared/services/se_service.dart';
 
 class BattleResultScreen extends ConsumerStatefulWidget {
   const BattleResultScreen({super.key, this.win = true, this.myName = ''});
@@ -22,6 +23,7 @@ class _BattleResultScreenState extends ConsumerState<BattleResultScreen> {
   @override
   void initState() {
     super.initState();
+    SeService.instance.play(widget.win ? Se.victory : Se.defeat);
     _fetchRanking();
   }
 

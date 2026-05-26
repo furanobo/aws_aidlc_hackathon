@@ -42,6 +42,7 @@ class _FriendListScreenState extends ConsumerState<FriendListScreen> {
       final api = ref.read(apiClientProvider);
       await api.delete('/social/friends/$friendId');
       setState(() => _friends.removeWhere((f) => (f['friendId'] ?? f['userId']) == friendId));
+      ref.invalidate(friendListProvider);
     } catch (_) {
       if (mounted) showPixelAlert(context, message: 'エラーが おきました');
     }
@@ -67,7 +68,7 @@ class _FriendListScreenState extends ConsumerState<FriendListScreen> {
 
     // Sync provider data to local state
     data.whenData((d) {
-      if (!_initialized || _friends.isEmpty && d['friends']!.isNotEmpty) {
+      if (!_initialized) {
         _friends = List.from(d['friends']!);
         _requests = List.from(d['requests']!);
         _initialized = true;

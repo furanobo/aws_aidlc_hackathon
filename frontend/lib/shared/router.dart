@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:buta_app/features/legal/license_list_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:buta_app/shared/services/bgm_service.dart';
 import 'package:buta_app/features/auth/login_screen.dart';
 import 'package:buta_app/features/auth/signup_screen.dart';
 import 'package:buta_app/features/auth/confirm_screen.dart';
@@ -52,6 +53,11 @@ final routerProvider = Provider<GoRouter>((ref) {
   final initialRoute = ref.watch(initialRouteProvider);
   return GoRouter(
     initialLocation: initialRoute,
+    redirect: (context, state) {
+      final track = BgmService.trackForRoute(state.matchedLocation);
+      BgmService.instance.play(track);
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/start',

@@ -11,6 +11,7 @@ import 'package:buta_app/shared/ui/audience_animation.dart';
 import 'package:buta_app/shared/ui/cloud_animation.dart';
 import 'package:buta_app/shared/services/battle_ws_service.dart';
 import 'package:buta_app/shared/services/api_client.dart';
+import 'package:buta_app/shared/services/se_service.dart';
 
 class BattleFightScreen extends ConsumerStatefulWidget {
   const BattleFightScreen({super.key, this.matchData});
@@ -147,6 +148,7 @@ class _BattleFightScreenState extends ConsumerState<BattleFightScreen> with Tick
 
     // 相手にダメージが入った場合
     if (newOppHp < oldOppHp) {
+      SeService.instance.play(Se.attack);
       final dmg = ((oldOppHp - newOppHp) * maxHpOpp).round();
       setState(() {
         _oppShake = true;
@@ -177,7 +179,8 @@ class _BattleFightScreenState extends ConsumerState<BattleFightScreen> with Tick
         }
       });
     } else if (newMyHp < oldMyHp) {
-      // 自分だけダメージ
+      // 自分だけダメージ（相手が攻撃してきた）
+      SeService.instance.play(Se.attack);
       final myDmg = ((oldMyHp - newMyHp) * maxHpMy).round();
       setState(() { _myShake = true; _flash = true; _showDamage = true; _damageText = '-$myDmg'; _damageOnOpp = false; });
       _shakeCtrl.forward(from: 0);
@@ -187,7 +190,7 @@ class _BattleFightScreenState extends ConsumerState<BattleFightScreen> with Tick
         _finishTurn(newMyHp, newOppHp, data);
       });
     } else {
-      // ダメージなし（両方ぼうぎょ等）
+      // 自分ダメージなし（防御成功）
       _finishTurn(newMyHp, newOppHp, data);
     }
   }
@@ -218,6 +221,7 @@ class _BattleFightScreenState extends ConsumerState<BattleFightScreen> with Tick
     _inputLocked = true;
     _timer?.cancel();
     final skill = _skills[idx];
+    if (skill['id'] == 'defend') SeService.instance.play(Se.defend);
     setState(() => _log = '${skill['name']} を えらんだ！\nあいてを まっています...');
     BattleWsService.instance.send({
       'action': 'selectAction',

@@ -27,9 +27,10 @@ class AuthStateNotifier extends AsyncNotifier<AuthTokens?> {
     final prefs = await SharedPreferences.getInstance();
     final accessToken = prefs.getString(_accessTokenKey);
     final refreshToken = prefs.getString(_refreshTokenKey);
+    final idToken = prefs.getString(_idTokenKey);
 
     if (accessToken == null) return null;
-    return AuthTokens(accessToken: accessToken, refreshToken: refreshToken);
+    return AuthTokens(accessToken: accessToken, refreshToken: refreshToken, idToken: idToken);
   }
 
   Future<bool> login(String email, String password) async {

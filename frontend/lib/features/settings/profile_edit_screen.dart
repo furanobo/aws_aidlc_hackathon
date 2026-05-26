@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:buta_app/shared/theme.dart';
 import 'package:buta_app/shared/ui/widgets.dart';
 import 'package:buta_app/shared/ui/pixel_input.dart';
 import 'package:buta_app/shared/ui/pixel_dialog.dart';
 import 'package:buta_app/shared/ui/pixel_tab_bar.dart';
 import 'package:buta_app/shared/services/api_client.dart';
+import 'package:buta_app/features/home/home_screen.dart';
 
 class ProfileEditScreen extends ConsumerStatefulWidget {
   const ProfileEditScreen({super.key});
@@ -25,21 +27,17 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   }
 
   Future<void> _loadCurrent() async {
+    final api = ref.read(apiClientProvider);
     try {
-      final api = ref.read(apiClientProvider);
-      final results = await Future.wait([
-        api.get('/users/me'),
-        api.get('/avatar'),
-      ]);
-      final profile = results[0].data as Map<String, dynamic>? ?? {};
-      final avatarData = results[1].data as Map<String, dynamic>? ?? {};
+      final res = await api.get('/users/me');
+      final profile = res.data as Map<String, dynamic>? ?? {};
+      if (mounted) setState(() => _nickCtrl.text = profile['nickname'] as String? ?? '');
+    } catch (_) {}
+    try {
+      final res = await api.get('/avatar');
+      final avatarData = res.data as Map<String, dynamic>? ?? {};
       final avatar = avatarData['avatar'] as Map<String, dynamic>? ?? avatarData;
-      if (mounted) {
-        setState(() {
-        _nickCtrl.text = profile['nickname'] as String? ?? '';
-        _avatarCtrl.text = avatar['name'] as String? ?? '';
-      });
-      }
+      if (mounted) setState(() => _avatarCtrl.text = avatar['name'] as String? ?? '');
     } catch (_) {}
   }
 
@@ -51,10 +49,14 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       final api = ref.read(apiClientProvider);
       await api.put('/users/profile', data: {'nickname': _nickCtrl.text.trim()});
       if (_avatarCtrl.text.trim().isNotEmpty) {
-        await api.put('/avatar/name', data: {'name': _avatarCtrl.text.trim()});
+        try {
+          await api.put('/avatar/name', data: {'name': _avatarCtrl.text.trim()});
+        } catch (_) {}
       }
-      if (mounted) await showPixelAlert(context, message: 'ほぞんしました！');
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      ref.invalidate(homeDataProvider);
+      await showPixelAlert(context, message: 'ほぞんしました！');
+      if (mounted) await _loadCurrent();
     } catch (_) {
       if (mounted) showPixelAlert(context, message: 'エラーが おきました');
     }

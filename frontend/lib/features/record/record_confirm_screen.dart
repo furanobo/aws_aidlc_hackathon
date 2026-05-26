@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:buta_app/shared/theme.dart';
 import 'package:buta_app/shared/ui/widgets.dart';
 import 'package:buta_app/shared/services/api_client.dart';
+import 'package:buta_app/shared/services/se_service.dart';
 
 class RecordConfirmScreen extends ConsumerStatefulWidget {
   const RecordConfirmScreen({super.key, required this.category});
@@ -40,6 +41,7 @@ class _RecordConfirmScreenState extends ConsumerState<RecordConfirmScreen> {
   }
 
   Future<void> _submit() async {
+    SeService.instance.play(Se.record);
     final cat = widget.category;
     try {
       final api = ref.read(apiClientProvider);

@@ -23,6 +23,7 @@ dependencies:
   carousel_slider: ^5.0.0
   flutter_svg: ^2.0.17
   web_socket_channel: ^3.0.2
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -37,6 +38,7 @@ flutter:
   assets:
     - assets/pixel-art/backgrounds/
     - assets/pixel-art/icons/
+    - assets/audio/
   fonts:
     - family: DotGothic16
       fonts:
