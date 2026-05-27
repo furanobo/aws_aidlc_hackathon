@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths: ['frontend/**']
+  pull_request:
+    branches: [main]
+    paths: ['frontend/**']
   workflow_dispatch:
 
 jobs:
@@ -23,20 +26,24 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Run tests
+      - name: Run tests with JSON report
         run: |
           flutter test --coverage --timeout 120s \
-            --reporter json > test-results.json \
+            --file-reporter "json:test-report.json" \
             test/main_test.dart test/shared/ test/features/ test/screens/ test/unit/ \
             test/pixel_app_bar_test.dart test/router_routes_test.dart \
             test/login_legal_links_test.dart test/router_test.dart || true
 
+      - name: Generate HTML report
+        if: always()
+        run: node generate-test-report.js
+
       - name: Generate test summary
         if: always()
         run: |
-          TOTAL=$(grep -c '"testID"' test-results.json 2>/dev/null || echo 0)
-          PASS=$(grep -c '"success":true' test-results.json 2>/dev/null || echo 0)
-          FAIL=$(grep -c '"success":false' test-results.json 2>/dev/null || echo 0)
+          TOTAL=$(grep -c '"type":"testDone"' test-report.json 2>/dev/null || echo 0)
+          PASS=$(grep -c '"result":"success"' test-report.json 2>/dev/null || echo 0)
+          FAIL=$(grep -c '"result":"failure"\|"result":"error"' test-report.json 2>/dev/null || echo 0)
           echo "## 🧪 Flutter Unit Tests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
@@ -44,6 +51,8 @@ jobs:
           echo "| Total | $TOTAL |" >> $GITHUB_STEP_SUMMARY
           echo "| ✅ Passed | $PASS |" >> $GITHUB_STEP_SUMMARY
           echo "| ❌ Failed | $FAIL |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📥 HTMLレポートは Artifacts からダウンロードできます" >> $GITHUB_STEP_SUMMARY
 
       - name: Check coverage >= 90%
         run: |
@@ -61,9 +70,17 @@ jobs:
           fi
           echo "✅ Coverage meets 90% threshold" >> $GITHUB_STEP_SUMMARY
 
+      - name: Upload unit test HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: frontend/test-report.html
+          retention-days: 14
+
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: flutter-coverage
           path: frontend/coverage/lcov.info
@@ -98,7 +115,7 @@ jobs:
       - name: Build APK (${{ matrix.flavor }})
         run: flutter build apk --release -t lib/main_${{ matrix.flavor }}.dart
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v4
         with:
           name: apk-${{ matrix.flavor }}
           path: frontend/build/app/outputs/flutter-apk/app-release.apk
